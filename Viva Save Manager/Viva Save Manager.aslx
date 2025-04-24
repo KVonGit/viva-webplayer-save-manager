@@ -1,0 +1,36 @@
+<!--Saved by Quest 5.9.9243.26937-->
+<asl version="580">
+  <include ref="English.aslx" />
+  <include ref="Core.aslx" />
+  <game name="Viva Save Manager">
+    <gameid>7cc5084c-81d1-4d38-8c5b-05d50762f74d</gameid>
+    <version>0.1.0 alpha</version>
+    <firstpublished>2025</firstpublished>
+    <subtitle>v{game.version}</subtitle>
+    <author>KV</author>
+    <description>Provides functionality to manage, backup, and restore save files for games running in the Viva web player environment.</description>
+    <showpanes type="boolean">false</showpanes>
+    <showcommandbar type="boolean">false</showcommandbar>
+    <showlocation type="boolean">false</showlocation>
+    <showborder type="boolean">false</showborder>
+    <autodescription type="boolean">false</autodescription>
+    <showtitle />
+  </game>
+  <object name="room">
+    <inherit name="editor_room" />
+    <description><![CDATA[<div class="container save-manager"><div class="row mb-4"><div class="col"><div class="card"><div class="card-header"><h2 class="h4 mb-0">Available Saves</h2></div><div class="card-body"><div id="savesList" class="list-group">Loading saves...</div></div></div></div></div><div class="row mb-4"><div class="col"><div class="card"><div class="card-header"><h2 class="h4 mb-0">Upload Save Game</h2></div><div class="card-body"><div class="input-group"><input type="file" class="form-control" id="saveFileInput" accept=".xml,.aslx,.quest-viva-save"><button class="btn btn-primary" onclick="handleFileUpload()">Upload</button></div></div></div></div></div><div class="row"><div class="col"><div class="card"><div class="card-header"><h2 class="h4 mb-0">Attribute Viewer</h2></div><div class="card-body"><div class="row g-2"><div class="col-12"><select class="form-select" id="gameIdSelect"><option value="">-- Select Game --</option></select></div><div class="col-12"><select class="form-select" id="slotSelect"><option value="">-- Select Slot --</option></select></div></div><div class="input-group mb-3"><input type="text" class="form-control" id="objectPath" placeholder="Object path (e.g. player)"><input type="text" class="form-control" id="attrName" placeholder="Attribute name"><button class="btn btn-primary" onclick="getAttributeValue()">Get Value</button></div><div id="attrValueDisplay" class="alert alert-info" style="display:none;"></div></div></div></div></div><div id="messageDialog" class="alert alert-success position-fixed top-0 start-50 translate-middle-x mt-3" style="display:none; z-index: 1050;" role="alert">    <span id="messageText"></span></div></div>]]></description>
+    <enter type="script">
+      JS.eval("const bootstrapScript = document.createElement(\"script\"); bootstrapScript.src = \"https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js\"; document.head.appendChild(bootstrapScript);")
+      JS.displaySavesList()
+      JS.populateGameSelect()
+      JS.eval("$('.save-manager').css({'max-width': '800px', 'margin': '0 auto', 'padding': '20px'});")
+      JS.eval("$('.form-select').css('max-width','fit-content');")
+      JS.uiHide("#status")
+    </enter>
+    <object name="player">
+      <inherit name="editor_object" />
+      <inherit name="editor_player" />
+    </object>
+  </object>
+  <javascript src="vivaSaveManager.js" />
+</asl>
