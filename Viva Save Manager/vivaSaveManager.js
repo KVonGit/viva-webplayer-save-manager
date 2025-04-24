@@ -81,7 +81,13 @@ async function displaySavesList() { // Exit if window.isVivaPlayer is false
         let html = '';
         for (const [gameId, game] of Object.entries(gameGroups)) {
             html += `<div class="game-group mb-4">
-                <h3 class="h5 mb-2">${game.name}</h3>
+                <div class="d-flex align-items-center mb-2">
+                    <h3 class="h5 mb-0 me-2">${game.name}</h3>
+                    <a href="https://play.textadventures.co.uk/textadventures/${gameId}" 
+                       class="text-decoration-none" 
+                       target="_blank" 
+                       title="Play ${game.name}">🗗</a>
+                </div>
                 <small class="text-muted d-block mb-2">ID: ${gameId}</small>
                 <ul class="list-group">`;
             
@@ -97,6 +103,7 @@ async function displaySavesList() { // Exit if window.isVivaPlayer is false
                         <div class="btn-group" role="group">
                             <button class="btn btn-sm btn-outline-primary" onclick="downloadVivaSave('${escapedGameId}', ${save.slot})">Download</button>
                             <button class="btn btn-sm btn-outline-secondary" onclick="copyVivaSave('${escapedGameId}', ${save.slot}).then(() => showMessage('Save copied successfully'))">Copy</button>
+                            <button class="btn btn-sm btn-outline-info" onclick="renameSaveSlot('${escapedGameId}', ${save.slot}, '${save.name.replace(/'/g, "\\'")}')">Rename</button>
                             <button class="btn btn-sm btn-outline-danger" onclick="deleteVivaSave('${escapedGameId}', ${save.slot})">Delete</button>
                         </div>
                     </div>
@@ -485,7 +492,10 @@ function parseVivaSaveXML(xmlString) {
       function parseValue(element) {
         const type = element.getAttribute('type');
         const content = element.textContent;
-        
+        // Handle empty elements as booleans set to true first
+        if (!type && !content && element.tagName !== 'attr') {
+          return true;
+      }
         switch(type) {
             case 'boolean':
                 return content ? content.toLowerCase() === 'true' : element.hasAttribute('type');
@@ -636,6 +646,7 @@ window.pendingImportData = null;
 
 async function handleFileUpload() {
     const fileInput = document.getElementById('saveFileInput');
+    const nameInput = document.getElementById('saveNameInput');
     const file = fileInput.files[0];
     
     if (!file) {
@@ -645,9 +656,13 @@ async function handleFileUpload() {
 
     try {
         const xmlString = await readFileAsText(file);
-        // Import directly using the game ID from the XML comment
-        await importSaveFromXML(xmlString);
+        const customName = nameInput.value.trim();
+        await importSaveFromXML(xmlString, customName);
         showMessage('Save imported successfully');
+        
+        // Clear inputs
+        fileInput.value = '';
+        nameInput.value = '';
     } catch (error) {
         console.error('Error importing save:', error);
         showMessage('Error importing save: ' + error.message);
@@ -663,7 +678,7 @@ function readFileAsText(file) {
     });
 }
 
-async function importSaveFromXML(xmlString) {
+async function importSaveFromXML(xmlString, customName = null) {
     const gameIdMatch = xmlString.match(/<!--\s*viva-save-manager\s+game-id="([^"]+)"\s*-->/);
     if (!gameIdMatch) {
         throw new Error('Invalid save file: No game ID found');
@@ -676,10 +691,10 @@ async function importSaveFromXML(xmlString) {
 
     // Match the working structure from copyVivaSaveToSlot
     const saveData = {
+        data: new TextEncoder().encode(xmlString),
         gameId: gameId,
         slotIndex: nextSlot,
-        data: new TextEncoder().encode(xmlString),
-        name: `Imported save ${new Date().toLocaleString()}`,
+        name: customName || `Imported save ${new Date().toLocaleString()}`,
         timestamp: new Date()
     };
 
@@ -867,4 +882,84 @@ async function deleteVivaSave(id, slot = 0) {
     }
 }
 
-window.scrollToEnd = () => { /* do nothing */ };
+async function renameSaveSlot(gameId, slot, currentName) {
+    const modalHtml = $(`
+        <div class="modal fade" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Rename Save</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <input type="text" class="form-control" id="newSaveName" value="${currentName}">
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-primary" id="confirmRename">Save</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `).appendTo('body');
+
+    try {
+        const confirmModal = new bootstrap.Modal(modalHtml[0]);
+        
+        const newName = await new Promise(resolve => {
+            modalHtml
+                .on('hidden.bs.modal', () => resolve(null))
+                .find('#confirmRename').on('click', () => {
+                    const name = modalHtml.find('#newSaveName').val().trim();
+                    confirmModal.hide();
+                    resolve(name);
+                });
+            
+            confirmModal.show();
+        });
+
+        if (!newName) return;
+
+        // Get the save data
+        const save = await getVivaSave(gameId, slot);
+        if (!save) throw new Error("Save not found");
+
+        // Create save object matching the working structure
+        const updatedSave = {
+            data: save.data,
+            name: newName,
+            timestamp: new Date(),
+            gameId: gameId,      // Include these fields like copyVivaSaveToSlot
+            slotIndex: slot      // Include these fields like copyVivaSaveToSlot
+        };
+
+        // Use direct IndexedDB put without separate key
+        const db = await new Promise((resolve, reject) => {
+            const request = indexedDB.open('quest-viva-saves', 1);
+            request.onerror = () => reject(request.error);
+            request.onsuccess = () => resolve(request.result);
+        });
+
+        const tx = db.transaction('saves', 'readwrite');
+        const store = tx.objectStore('saves');
+        
+        await new Promise((resolve, reject) => {
+            const request = store.put(updatedSave);  // No separate key needed
+            request.onsuccess = () => resolve();
+            request.onerror = () => reject(request.error);
+        });
+
+        await displaySavesList();
+        showMessage('Save renamed successfully');
+    } catch (error) {
+        console.error('Error renaming save:', error);
+        showMessage('Error renaming save');
+    } finally {
+        modalHtml.remove();
+    }
+}
+
+window.scrollToEnd = () => { /* do nothing */ }; // This is needed in this environment.
+
+
+
