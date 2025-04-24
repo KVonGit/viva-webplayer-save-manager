@@ -9,14 +9,17 @@
  * for games running in the Viva web player environment.
  */
 
+window.isVivaPlayer = true;
 // First, don't run this if this is running in the Windows app.
 if (window.location.href.startsWith('res')) {
+  window.isVivaPlayer = false;
   setTimeout(()=>{$('#divOutput').html('<center><h1>This only works in the Viva WebPlayer app.</h1></center>');}, 500);
   throw new Error('Viva Save Manager script is not compatible with the Windows app. Exiting. Not an actual error.');
 }
 console.log('Not the desktop app, continuing...');
 // Second, don't run this if the URL includes 'Play.aspx', because the v5 WebPlayer works differently.
 if (window.location.href.includes('Play.aspx')) {
+  window.isVivaPlayer = false;
   setTimeout(()=>{$('#divOutput').html('<center><h1>This only works in the Viva WebPlayer app.</h1></center>');}, 500);
   throw new Error('Viva Save Manager script is not compatible with the v5 WebPlayer app. Exiting. Not an actual error.');
 }
@@ -47,40 +50,56 @@ console.log('Not the v5 WebPlayer, continuing...');
   }
 })();
 console.log('Cache buster applied, continuing...');
-async function displaySavesList() {
+async function displaySavesList() { // Exit if window.isVivaPlayer is false
+    if (!window.isVivaPlayer) return;
     try {
         const saves = await allVivaSaves();
         const gameGroups = {};
 
-        // Group saves by game ID
-        saves.forEach(save => {
+        // First pass: group saves by game ID and get game names
+        for (const save of saves) {
             const gameId = save.key[0];
             if (!gameGroups[gameId]) {
-                gameGroups[gameId] = [];
+                // Get game name from first save's XML
+                const xmlString = decodeSaveData(save.value.data);
+                const saveData = parseVivaSaveXML(xmlString);
+                const gameInfo = saveData.getGameInfo();
+                
+                gameGroups[gameId] = {
+                    name: gameInfo?.name || 'Unknown Game',
+                    saves: []
+                };
             }
-            gameGroups[gameId].push({
+            gameGroups[gameId].saves.push({
                 slot: save.key[1],
                 name: save.value.name,
                 timestamp: new Date(save.value.timestamp).toLocaleString()
             });
-        });
+        }
 
         // Generate HTML
         let html = '';
-        for (const [gameId, gameSaves] of Object.entries(gameGroups)) {
-            html += `<div class="game-group">
-                <h3>Game ID: ${gameId}</h3>
-                <ul>`;
+        for (const [gameId, game] of Object.entries(gameGroups)) {
+            html += `<div class="game-group mb-4">
+                <h3 class="h5 mb-2">${game.name}</h3>
+                <small class="text-muted d-block mb-2">ID: ${gameId}</small>
+                <ul class="list-group">`;
             
-            gameSaves.sort((a, b) => a.slot - b.slot);
-            gameSaves.forEach(save => {
-                const escapedGameId = gameId.replace(/'/g, "\\'"); // Escape single quotes
-                html += `<li>
-                    Slot ${save.slot}: ${save.name}
-                    <br><small>${save.timestamp}</small>
-                    <button onclick="downloadVivaSave('${escapedGameId}', ${save.slot})">Download</button> 
-                    <button onclick="copyVivaSave('${escapedGameId}', ${save.slot}).then(() => showMessage('Save copied successfully'))">Copy</button> 
-                    <button onclick="deleteVivaSave('${escapedGameId}', ${save.slot})">Delete</button>
+            game.saves.sort((a, b) => a.slot - b.slot);
+            game.saves.forEach(save => {
+                const escapedGameId = gameId.replace(/'/g, "\\'");
+                html += `<li class="list-group-item">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>Slot ${save.slot}:</strong> ${save.name}
+                            <br><small class="text-muted">${save.timestamp}</small>
+                        </div>
+                        <div class="btn-group" role="group">
+                            <button class="btn btn-sm btn-outline-primary" onclick="downloadVivaSave('${escapedGameId}', ${save.slot})">Download</button>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="copyVivaSave('${escapedGameId}', ${save.slot}).then(() => showMessage('Save copied successfully'))">Copy</button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="deleteVivaSave('${escapedGameId}', ${save.slot})">Delete</button>
+                        </div>
+                    </div>
                 </li>`;
             });
             
@@ -624,20 +643,17 @@ function readFileAsText(file) {
 }
 
 async function importSaveFromXML(xmlString) {
-    // Extract game ID from comment
     const gameIdMatch = xmlString.match(/<!--\s*viva-save-manager\s+game-id="([^"]+)"\s*-->/);
     if (!gameIdMatch) {
         throw new Error('Invalid save file: No game ID found');
     }
     
     const gameId = gameIdMatch[1];
-    // Remove the comment to maintain original XML structure
     xmlString = xmlString.replace(/<!--\s*viva-save-manager\s+game-id="[^"]+"\s*-->\n?/, '');
 
-    // Find the next available slot
     const nextSlot = await getHighestSlot(gameId) + 1;
 
-    // Create save data matching GameSaver's structure
+    // Match the working structure from copyVivaSaveToSlot
     const saveData = {
         gameId: gameId,
         slotIndex: nextSlot,
@@ -646,12 +662,27 @@ async function importSaveFromXML(xmlString) {
         timestamp: new Date()
     };
 
-    // Save using our working save function
-    await saveToDB(saveData, gameId, nextSlot, false);
+    // Use direct IndexedDB put like copyVivaSaveToSlot does
+    const db = await new Promise((resolve, reject) => {
+        const request = indexedDB.open('quest-viva-saves', 1);
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => resolve(request.result);
+    });
+
+    const tx = db.transaction('saves', 'readwrite');
+    const store = tx.objectStore('saves');
+    
+    await new Promise((resolve, reject) => {
+        const request = store.put(saveData);
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+    });
+
     await displaySavesList();
 }
 
 async function populateGameSelect() {
+    if (!window.isVivaPlayer) return;
     try {
         const saves = await allVivaSaves();
         const gameIds = [...new Set(saves.map(save => save.key[0]))];

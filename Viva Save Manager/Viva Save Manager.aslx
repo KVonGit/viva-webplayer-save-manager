@@ -25,7 +25,7 @@
       JS.populateGameSelect()
       JS.eval("$('.save-manager').css({'max-width': '800px', 'margin': '0 auto', 'padding': '20px'});")
       JS.eval("$('.form-select').css('max-width','fit-content');")
-      JS.uiHide("#status")
+      JS.eval("$('#qv-status').hide();")
     </enter>
     <object name="player">
       <inherit name="editor_object" />
