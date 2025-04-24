@@ -866,3 +866,5 @@ async function deleteVivaSave(id, slot = 0) {
         modalHtml.remove();
     }
 }
+
+window.scrollToEnd = () => { /* do nothing */ };
