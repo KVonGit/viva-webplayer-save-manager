@@ -442,6 +442,25 @@ function parseVivaSaveXML(xmlString) {
     
     // Get an attribute value for a specific object
     getObjectAttribute: function(objectPath, attributeName) {
+      // Special handling for 'parent' attribute
+      if (attributeName === 'parent') {
+        const obj = findObjectByPath(objectPath);
+        if (!obj) return null;
+
+        // Look through all object elements in the document
+        const objects = xmlDoc.getElementsByTagName('object');
+        for (let potentialParent of objects) {
+          // Check if this object contains our target as a direct child
+          for (let child of potentialParent.children) {
+            if (child.tagName === 'object' && 
+                child.getAttribute('name') === obj.getAttribute('name')) {
+              return potentialParent.getAttribute('name');
+            }
+          }
+        }
+        return null;
+      }
+
       // Handle template elements specially
       if (objectPath === 'template') {
         const templates = xmlDoc.getElementsByTagName('template');
@@ -453,7 +472,7 @@ function parseVivaSaveXML(xmlString) {
         return null;
       }
   
-      // For regular objects
+      // For regular objects and other attributes
       const obj = findObjectByPath(objectPath);
       if (!obj) return null;
       
@@ -605,7 +624,9 @@ async function getAttributeValue() {
         const saveData = parseVivaSaveXML(xmlString);
         
         const value = saveData.getObjectAttribute(objectPath, attrName);
-        document.getElementById('attrValue').textContent = `${objectPath}.${attrName}: ${value}`;
+        const display = document.getElementById('attrValue');
+        display.textContent = `${objectPath}.${attrName}: ${value}`;
+        display.style.display = 'block';
     } catch (error) {
         console.error('Error getting attribute value:', error);
     }
@@ -719,12 +740,32 @@ async function updateSlotSelect() {
     
     try {
         const saves = await allVivaSaves();
-        const slots = saves
-            .filter(save => save.key[0] === gameId)
-            .map(save => ({
-                slot: save.key[1],
-                name: save.value.name
-            }));
+        const gameSaves = saves.filter(save => save.key[0] === gameId);
+        
+        if (gameSaves.length > 0) {
+            // Get game name from first save
+            const xmlString = decodeSaveData(gameSaves[0].value.data);
+            const saveData = parseVivaSaveXML(xmlString);
+            const gameInfo = saveData.getGameInfo();
+            
+            // Show game name next to the select
+            const gameIdSelect = document.getElementById('gameIdSelect');
+            const gameNameSpan = document.getElementById('selectedGameName') || 
+                (() => {
+                    const span = document.createElement('span');
+                    span.id = 'selectedGameName';
+                    span.className = 'ms-2 text-muted';
+                    gameIdSelect.parentNode.appendChild(span);
+                    return span;
+                })();
+            gameNameSpan.textContent = `(${gameInfo.name})`;
+        }
+
+        // Populate slots
+        const slots = gameSaves.map(save => ({
+            slot: save.key[1],
+            name: save.value.name
+        }));
         
         slots.sort((a, b) => a.slot - b.slot);
         
