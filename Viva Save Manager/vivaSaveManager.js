@@ -1,6 +1,6 @@
 /**
  * fileoverview Viva Save Manager - Manages save files for Viva web player games
- * version 0.1.0-beta
+ * version 0.1.5-alpha
  * author K.V.
  * license MIT
  * 
@@ -857,7 +857,8 @@ async function renameSaveSlot(gameId, slot, currentName) {
     }
 }
 
-window.scrollToEnd = () => { /* do nothing */ }; // This is needed in this environment.
-
+function scrollToEnd() {
+  // Do nothing
+}
 
 
