@@ -10,57 +10,50 @@
  */
 
 window.isVivaPlayer = true;
-// First, don't run this if this is running in the Windows app.
+
 if (window.location.href.startsWith('res')) {
   window.isVivaPlayer = false;
   setTimeout(()=>{$('#divOutput').html('<center><h1>This only works in the Viva WebPlayer app.</h1></center>');}, 500);
   throw new Error('Viva Save Manager script is not compatible with the Windows app. Exiting. Not an actual error.');
 }
 console.log('Not the desktop app, continuing...');
-// Second, don't run this if the URL includes 'Play.aspx', because the v5 WebPlayer works differently.
+
 if (window.location.href.includes('Play.aspx')) {
   window.isVivaPlayer = false;
   setTimeout(()=>{$('#divOutput').html('<center><h1>This only works in the Viva WebPlayer app.</h1></center>');}, 500);
   throw new Error('Viva Save Manager script is not compatible with the v5 WebPlayer app. Exiting. Not an actual error.');
 }
 console.log('Not the v5 WebPlayer, continuing...');
-// Now, let's Viva-beta-fy this code with a custom cache buster!
+
 (function () {
   const currentScript = document.currentScript;
 
-  /* The Windows app and the v5 WebPlayer both have '?c=' */
   if (!currentScript.src.includes('?c=')) {
       
-      // Build cache-busted URL
       const bustedUrl = currentScript.src + '?c=' + Date.now();
 
-      // Create new script element
       const script = document.createElement("script");
       script.src = bustedUrl;
 
-      // Replace self
       script.onload = () => {
           console.log("Loaded fresh file:", bustedUrl);
       };
 
       document.head.appendChild(script);
 
-      // Prevent this (stale) version from continuing
       throw new Error("Reloading file with cache buster: " + bustedUrl);
   }
 })();
 console.log('Cache buster applied, continuing...');
-async function displaySavesList() { // Exit if window.isVivaPlayer is false
+async function displaySavesList() {
     if (!window.isVivaPlayer) return;
     try {
         const saves = await allVivaSaves();
         const gameGroups = {};
 
-        // First pass: group saves by game ID and get game names
         for (const save of saves) {
             const gameId = save.key[0];
             if (!gameGroups[gameId]) {
-                // Get game name from first save's XML
                 const xmlString = decodeSaveData(save.value.data);
                 const saveData = parseVivaSaveXML(xmlString);
                 const gameInfo = saveData.getGameInfo();
@@ -77,7 +70,6 @@ async function displaySavesList() { // Exit if window.isVivaPlayer is false
             });
         }
 
-        // Generate HTML
         let html = '';
         for (const [gameId, game] of Object.entries(gameGroups)) {
             html += `<div class="game-group mb-4">
@@ -152,7 +144,6 @@ async function allVivaSaves() {
   });
 }
 
-
 async function getVivaSave(id, slot = 0) {
   return new Promise((resolve, reject) => {
     let request = indexedDB.open("quest-viva-saves");
@@ -176,49 +167,34 @@ async function getVivaSave(id, slot = 0) {
 function decodeSaveData(uint8array) {
   let decoder = new TextDecoder("utf-8");
   let xmlString = decoder.decode(uint8array);
-  return xmlString; // Just a string, not parsed XML yet
+  return xmlString;
 }
 
-/*
-// Then use it in your function
-getVivaSave().then(save => {
-  const xmlString = decodeSaveData(save.data);
-  console.log(xmlString); // The full XML save content
-});
-*/
-
-// Get all slots for a specific game
 async function getSaveSlots(id) {
   const allSaves = await allVivaSaves();
-  // Filter for the specific game ID and extract slot numbers
   return allSaves
     .filter(save => save.key[0] === id)
     .map(save => save.key[1]);
 }
 
-// Get the highest slot number for a game
 async function getHighestSlot(id) {
   const slots = await getSaveSlots(id);
   return slots.length > 0 ? Math.max(...slots) : -1;
 }
 
-// Changed parameter order and renamed for clarity
 async function copyVivaSaveToSlot(newSlot, originalSlot = 0, newName = null, id, overwrite = false) {
     try {
-        // Get original save
         let save = await getVivaSave(id, originalSlot);
         if (!save) throw new Error("Original save not found");
 
-        // Create save entry matching GameSaver's structure
         const clonedSave = {
-            gameId: id,          // Required by keyPath
-            slotIndex: newSlot,  // Required by keyPath
-            data: save.data,     // The actual save data
-            name: newName || `Copy of ${save.name}`, // Use original save's name
+            gameId: id,
+            slotIndex: newSlot,
+            data: save.data,
+            name: newName || `Copy of ${save.name}`,
             timestamp: new Date()
         };
 
-        // Save using IndexedDB put operation
         const db = await new Promise((resolve, reject) => {
             const request = indexedDB.open('quest-viva-saves', 1);
             request.onerror = () => reject(request.error);
@@ -242,9 +218,7 @@ async function copyVivaSaveToSlot(newSlot, originalSlot = 0, newName = null, id,
     }
 }
 
-// Automatic slot copying function - creates a new slot with next number
 async function copyVivaSave(id, originalSlot = 0, newName = null) {
-  // Find the next available slot (max + 1)
   const highestSlot = await getHighestSlot(id);
   const newSlot = highestSlot + 1;
   
@@ -252,6 +226,7 @@ async function copyVivaSave(id, originalSlot = 0, newName = null) {
 }
 
 // Clone to different game ID
+// UNUSED FUNCTION
 // No clue why we'd want to do this, but here it is anyway =)
 async function cloneVivaSave(newId, originalid, originalSlot = 0, newSlot = 0, newName = null, overwrite = false) {
   let save = await getVivaSave(originalId, originalSlot);
@@ -268,7 +243,6 @@ async function cloneVivaSave(newId, originalid, originalSlot = 0, newSlot = 0, n
   return saveToDB(clonedSave, newId, newSlot, overwrite);
 }
 
-// Helper function for DB operations
 function saveToDB(saveData, gameId, slotIndex, overwrite = false) {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open("quest-viva-saves");
@@ -280,7 +254,6 @@ function saveToDB(saveData, gameId, slotIndex, overwrite = false) {
       const transaction = db.transaction(["saves"], "readwrite");
       const store = transaction.objectStore("saves");
       
-      // Check if save already exists at destination
       if (!overwrite) {
         const checkRequest = store.get([gameId, slotIndex]);
         checkRequest.onsuccess = function() {
@@ -296,14 +269,12 @@ function saveToDB(saveData, gameId, slotIndex, overwrite = false) {
       }
       
       function putSave() {
-        // Create a clean save object without the composite key fields
         const cleanSaveData = {
           data: saveData.data,
           name: saveData.name,
           timestamp: saveData.timestamp
         };
         
-        // Use the composite key separately
         const putRequest = store.put(cleanSaveData, [gameId, slotIndex]);
         putRequest.onsuccess = () => resolve(saveData);
         putRequest.onerror = (e) => {
@@ -330,31 +301,26 @@ async function downloadVivaSave(id, slot = 0, format = 'quest-viva-save') {
 
   let a = document.createElement("a");
   a.href = url;
-  a.download = `qv_save-${id}-${slot}.${format}`;
-  // TODO: Add timestamp to filename
+  a.download = `qv_save-${id}-${slot}.${Date.now()}.${format}`;
   a.click();
 
   URL.revokeObjectURL(url);
 }
 
 function parseVivaSaveXML(xmlString) {
-  // Parse the XML string into a DOM Document
   const parser = new DOMParser();
   const xmlDoc = parser.parseFromString(xmlString, "text/xml");
   
-  // Find an object by path (e.g., "room.player.lamp")
   function findObjectByPath(path) {
     if (!path) return null;
     
     const parts = path.split('.');
     let currentElement = xmlDoc.documentElement; // <asl> root element
     
-    // Special case for game properties and templates
     if (parts[0] === 'game' || parts[0] === 'template') {
       const elements = currentElement.getElementsByTagName(parts[0]);
       if (elements.length === 0) return null;
       
-      // For templates, find by name attribute
       if (parts[0] === 'template') {
         for (let elem of elements) {
           if (elem.getAttribute('name') === parts[1]) {
@@ -364,7 +330,6 @@ function parseVivaSaveXML(xmlString) {
         return null;
       }
       
-      // Handle game properties
       if (parts[0] === 'game') {
         if (parts.length === 1) return elements[0];
         if (parts.length === 2) {
@@ -376,10 +341,8 @@ function parseVivaSaveXML(xmlString) {
       return null;
     }
 
-    // For regular objects (like 'player' or room names)
     let found = false;
     
-    // First try to find the object as a direct child
     for (let i = 0; i < currentElement.children.length; i++) {
       const child = currentElement.children[i];
       if (child.tagName === 'object' && child.getAttribute('name') === parts[0]) {
@@ -389,7 +352,6 @@ function parseVivaSaveXML(xmlString) {
       }
     }
 
-    // If not found as direct child, try searching all object elements
     if (!found) {
       const objects = currentElement.getElementsByTagName('object');
       for (let obj of objects) {
@@ -403,9 +365,7 @@ function parseVivaSaveXML(xmlString) {
 
     if (!found) return null;
 
-    // If looking for an attribute
     if (parts.length === 2) {
-      // Search through attr elements
       for (let i = 0; i < currentElement.children.length; i++) {
         const child = currentElement.children[i];
         if (child.tagName === 'attr' && child.getAttribute('name') === parts[1]) {
@@ -418,16 +378,12 @@ function parseVivaSaveXML(xmlString) {
   }
   
   return {
-    // Get raw document
     getDocument: () => xmlDoc,
     
-    // Get a specific object by path
     getObject: (path) => findObjectByPath(path),
     
-    // Check if an object exists
     objectExists: (path) => findObjectByPath(path) !== null,
     
-    // Get game info
     getGameInfo: function() {
       const gameElem = xmlDoc.getElementsByTagName('game')[0];
       if (!gameElem) return null;
@@ -436,7 +392,6 @@ function parseVivaSaveXML(xmlString) {
         name: gameElem.getAttribute('name') || ''
       };
       
-      // Add other game properties
       ['version', 'author'].forEach(prop => {
         const elements = gameElem.getElementsByTagName(prop);
         if (elements.length > 0) {
@@ -447,17 +402,13 @@ function parseVivaSaveXML(xmlString) {
       return result;
     },
     
-    // Get an attribute value for a specific object
     getObjectAttribute: function(objectPath, attributeName) {
-      // Special handling for 'parent' attribute
       if (attributeName === 'parent') {
         const obj = findObjectByPath(objectPath);
         if (!obj) return null;
 
-        // Look through all object elements in the document
         const objects = xmlDoc.getElementsByTagName('object');
         for (let potentialParent of objects) {
-          // Check if this object contains our target as a direct child
           for (let child of potentialParent.children) {
             if (child.tagName === 'object' && 
                 child.getAttribute('name') === obj.getAttribute('name')) {
@@ -468,7 +419,6 @@ function parseVivaSaveXML(xmlString) {
         return null;
       }
 
-      // Handle template elements specially
       if (objectPath === 'template') {
         const templates = xmlDoc.getElementsByTagName('template');
         for (let template of templates) {
@@ -479,20 +429,16 @@ function parseVivaSaveXML(xmlString) {
         return null;
       }
   
-      // For regular objects and other attributes
       const obj = findObjectByPath(objectPath);
       if (!obj) return null;
       
-      // First check if we're looking for the 'name' attribute of the object itself
       if (attributeName === 'name') {
         return obj.getAttribute('name');
       }
       
-      // Helper function to parse value based on type
       function parseValue(element) {
         const type = element.getAttribute('type');
         const content = element.textContent;
-        // Handle empty elements as booleans set to true first
         if (!type && !content && element.tagName !== 'attr') {
           return true;
       }
@@ -525,7 +471,6 @@ function parseVivaSaveXML(xmlString) {
         }
       }
   
-      // Check both formats: direct element and attr element
       const directElement = Array.from(obj.children).find(
           child => child.tagName === attributeName
       );
@@ -543,7 +488,6 @@ function parseVivaSaveXML(xmlString) {
       return null;
     },
     
-    // Get all attributes of an object
     getObjectAttributes: function(objectPath) {
       const obj = findObjectByPath(objectPath);
       if (!obj) return {};
@@ -559,14 +503,13 @@ function parseVivaSaveXML(xmlString) {
           
           if (type === 'boolean') result[name] = content.toLowerCase() === 'true';
           else if (type === 'number') result[name] = parseFloat(content);
-          else result[name] = content; // String or other types
+          else result[name] = content;
         }
       }
       
       return result;
     },
     
-    // Get direct child objects of an object
     getChildObjects: function(objectPath) {
       const obj = findObjectByPath(objectPath);
       if (!obj) return [];
@@ -583,33 +526,6 @@ function parseVivaSaveXML(xmlString) {
       return result;
     }
   };
-}
-
-// Example usage
-async function checkSaveData() {
-  const save = await getVivaSave();
-  if (!save) {
-    console.error("No save found");
-    return;
-  }
-  
-  const xmlString = decodeSaveData(save.data);
-  const saveData = parseVivaSaveXML(xmlString);
-  
-  // Get game info
-  const gameInfo = saveData.getGameInfo();
-  console.log(`Game: ${gameInfo.name} v${gameInfo.version} by ${gameInfo.author}`);
-
-  // The above works, the next two do not.
-  // Example file in examples folder: qv_save-z2yqtt1as0qxprpe1f5xag-0.quest-viva-save
-
-  // Check specific attribute
-  const myAttribute = saveData.getObjectAttribute('player', 'name');
-  console.log(`player.name: ${myAttribute}`); // Will be true as a boolean
-  
-  // List all objects in room
-  const roomObjects = saveData.getChildObjects('Your Hovel');
-  console.log("Objects in room:", roomObjects);
 }
 
 async function getAttributeValue() {
@@ -660,7 +576,6 @@ async function handleFileUpload() {
         await importSaveFromXML(xmlString, customName);
         showMessage('Save imported successfully');
         
-        // Clear inputs
         fileInput.value = '';
         nameInput.value = '';
     } catch (error) {
@@ -689,7 +604,6 @@ async function importSaveFromXML(xmlString, customName = null) {
 
     const nextSlot = await getHighestSlot(gameId) + 1;
 
-    // Match the working structure from copyVivaSaveToSlot
     const saveData = {
         data: new TextEncoder().encode(xmlString),
         gameId: gameId,
@@ -698,7 +612,6 @@ async function importSaveFromXML(xmlString, customName = null) {
         timestamp: new Date()
     };
 
-    // Use direct IndexedDB put like copyVivaSaveToSlot does
     const db = await new Promise((resolve, reject) => {
         const request = indexedDB.open('quest-viva-saves', 1);
         request.onerror = () => reject(request.error);
@@ -724,7 +637,6 @@ async function populateGameSelect() {
         const gameIds = [...new Set(saves.map(save => save.key[0]))];
         const select = document.getElementById('gameIdSelect');
         
-        // Clear existing options except first
         while (select.options.length > 1) {
             select.remove(1);
         }
@@ -746,7 +658,6 @@ async function updateSlotSelect() {
     const gameId = document.getElementById('gameIdSelect').value;
     const select = document.getElementById('slotSelect');
     
-    // Clear existing options except first
     while (select.options.length > 1) {
         select.remove(1);
     }
@@ -758,12 +669,10 @@ async function updateSlotSelect() {
         const gameSaves = saves.filter(save => save.key[0] === gameId);
         
         if (gameSaves.length > 0) {
-            // Get game name from first save
             const xmlString = decodeSaveData(gameSaves[0].value.data);
             const saveData = parseVivaSaveXML(xmlString);
             const gameInfo = saveData.getGameInfo();
             
-            // Show game name next to the select
             const gameIdSelect = document.getElementById('gameIdSelect');
             const gameNameSpan = document.getElementById('selectedGameName') || 
                 (() => {
@@ -776,7 +685,6 @@ async function updateSlotSelect() {
             gameNameSpan.textContent = `(${gameInfo.name})`;
         }
 
-        // Populate slots
         const slots = gameSaves.map(save => ({
             slot: save.key[1],
             name: save.value.name
@@ -795,14 +703,10 @@ async function updateSlotSelect() {
     }
 }
 
-// Call this when page loads
-// window.addEventListener('load', populateGameSelect);
-
 function showMessage(message, autoCloseMs = 2000) {
     const messageDialog = $("#messageDialog");
     $("#messageText").text(message);
     
-    // Using Bootstrap's alert show/hide
     messageDialog
         .removeClass('fade')
         .show()
@@ -817,7 +721,6 @@ function showMessage(message, autoCloseMs = 2000) {
 }
 
 async function deleteVivaSave(id, slot = 0) {
-    // Create and show Bootstrap confirmation modal
     const modalHtml = $(`
         <div class="modal fade" tabindex="-1">
             <div class="modal-dialog">
@@ -839,10 +742,8 @@ async function deleteVivaSave(id, slot = 0) {
     `).appendTo('body');
 
     try {
-        // Initialize Bootstrap modal
         const confirmModal = new bootstrap.Modal(modalHtml[0]);
         
-        // Wait for user confirmation
         const confirmed = await new Promise(resolve => {
             modalHtml
                 .on('hidden.bs.modal', () => resolve(false))
@@ -856,7 +757,6 @@ async function deleteVivaSave(id, slot = 0) {
 
         if (!confirmed) return;
 
-        // Perform delete operation
         const db = await new Promise((resolve, reject) => {
             const request = indexedDB.open('quest-viva-saves', 1);
             request.onerror = () => reject(request.error);
@@ -920,17 +820,15 @@ async function renameSaveSlot(gameId, slot, currentName) {
 
         if (!newName) return;
 
-        // Get the save data
         const save = await getVivaSave(gameId, slot);
         if (!save) throw new Error("Save not found");
 
-        // Create save object matching the working structure
         const updatedSave = {
             data: save.data,
             name: newName,
             timestamp: new Date(),
-            gameId: gameId,      // Include these fields like copyVivaSaveToSlot
-            slotIndex: slot      // Include these fields like copyVivaSaveToSlot
+            gameId: gameId,
+            slotIndex: slot
         };
 
         // Use direct IndexedDB put without separate key
