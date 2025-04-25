@@ -1,7 +1,7 @@
 /**
  * fileoverview Viva Save Manager - Manages save files for Viva web player games
- * version 0.1.5-alpha
- * author K.V.
+ * version 1.0-beta
+ * author KV and GHC
  * license MIT
  * 
  * description
@@ -45,6 +45,110 @@ console.log('Not the v5 WebPlayer, continuing...');
   }
 })();
 console.log('Cache buster applied, continuing...');
+
+const replaceDivOutput = () => {
+  const newDivOutput = `<div class="container save-manager">
+      <div class="row mb-4">
+        <div class="col">
+          <div class="card">
+            <div class="card-header">
+              <h2 class="h4 mb-0">Available Saves</h2>
+            </div>
+            <div class="card-body">
+              <div id="savesList" class="list-group">Loading saves...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="row mb-4">
+        <div class="col">
+          <div class="card">
+            <div class="card-header">
+              <h2 class="h4 mb-0">Upload Save Game</h2>
+            </div>
+            <div class="card-body">
+              <div class="input-group mb-2">
+                <input
+                  type="file"
+                  class="form-control"
+                  id="saveFileInput"
+                  accept=".xml,.aslx,.quest-viva-save"
+                />
+              </div>
+              <div class="input-group">
+                <input
+                  type="text"
+                  class="form-control"
+                  id="saveNameInput"
+                  placeholder="Save name (optional)"
+                />
+                <button class="btn btn-primary" onclick="handleFileUpload()">
+                  Upload
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="col">
+          <div class="card">
+            <div class="card-header">
+              <h2 class="h4 mb-0">Attribute Viewer</h2>
+            </div>
+            <div class="card-body">
+              <div class="row g-2">
+                <div class="col-12">
+                  <div class="d-flex align-items-center">
+                    <select class="form-select" id="gameIdSelect">
+                      <option value="">-- Select Game --</option>
+                    </select>
+                    <span id="selectedGameName" class="ms-2 text-muted"></span>
+                  </div>
+                </div>
+                <div class="col-12">
+                  <select class="form-select" id="slotSelect">
+                    <option value="">-- Select Slot --</option>
+                  </select>
+                </div>
+              </div>
+              <div class="input-group mb-3">
+                <input
+                  type="text"
+                  class="form-control"
+                  id="objectPath"
+                  placeholder="Object path (e.g. player)"
+                /><input
+                  type="text"
+                  class="form-control"
+                  id="attrName"
+                  placeholder="Attribute name"
+                /><button class="btn btn-primary" onclick="getAttributeValue()">
+                  Get Value
+                </button>
+              </div>
+              <div
+                id="attrValue"
+                class="alert alert-info"
+                style="display: none"
+              ></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div
+        id="messageDialog"
+        class="alert alert-success position-fixed top-0 start-50 translate-middle-x mt-3"
+        style="display: none; z-index: 1050"
+        role="alert"
+      >
+        <span id="messageText"></span>
+      </div>
+    </div>`;
+  const divOutput = document.getElementById("divOutput");
+  divOutput.innerHTML = newDivOutput;
+};
+
 async function displaySavesList() {
     if (!window.isVivaPlayer) return;
     try {
