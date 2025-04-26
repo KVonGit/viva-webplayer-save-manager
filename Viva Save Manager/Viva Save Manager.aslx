@@ -4,7 +4,7 @@
   <include ref="Core.aslx" />
   <game name="Viva Save Manager">
     <gameid>7cc5084c-81d1-4d38-8c5b-05d50762f74d</gameid>
-    <version>1.0 beta</version>
+    <version>1.0.2 beta</version>
     <firstpublished>2025</firstpublished>
     <subtitle>v{game.version}</subtitle>
     <author>KV and GHC</author>
@@ -41,5 +41,5 @@ Manage all your Quest game saves in one convenient place. Works with any game ru
       <inherit name="editor_player" />
     </object>
   </object>
-  <javascript src="vivaSaveManager.js" />
+  <javascript src="vivaSaveManager.beta.js" />
 </asl>
