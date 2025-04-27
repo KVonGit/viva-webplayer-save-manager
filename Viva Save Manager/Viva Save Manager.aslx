@@ -4,7 +4,7 @@
   <include ref="Core.aslx" />
   <game name="Viva Save Manager">
     <gameid>7cc5084c-81d1-4d38-8c5b-05d50762f74d</gameid>
-    <version>1.0.5 beta</version>
+    <version>1.0.6 beta</version>
     <firstpublished>2025</firstpublished>
     <subtitle>v{game.version}</subtitle>
     <author>KV and GHC</author>

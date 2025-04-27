@@ -1,5 +1,5 @@
 window.isVivaPlayer = true;
-window.qvsmVersion = "1.0.5 beta";
+window.qvsmVersion = "1.0.6 beta";
 
 if (window.location.href.startsWith("res")) {
   // This is the Windows app.
@@ -241,7 +241,8 @@ function replaceDivOutput() {
       transition: transform 0.3s;
     }
     
-    .save-manager .collapsed .collapse-indicator {
+    /* Fix for arrow rotation - target based on collapse state */
+    .save-manager [aria-expanded="false"] .collapse-indicator {
       transform: rotate(-90deg);
     }
     
@@ -300,6 +301,10 @@ async function displaySavesList() {
          class="text-decoration-none me-2" 
          target="_blank" 
          title="Play ${game.name}">▶️</a>
+      <a href="javascript:void(0)"
+         class="text-decoration-none me-2"
+         onclick="event.preventDefault(); event.stopPropagation(); normalizeSlots('${gameId}')"
+         title="Fix slot numbering">🔢</a>
       <a href="javascript:void(0)" 
          class="text-decoration-none" 
          onclick="event.preventDefault(); event.stopPropagation(); deleteAllSavesForGame('${gameId}')"
@@ -1281,6 +1286,77 @@ async function renameSaveSlot(gameId, slot, currentName) {
     showMessage("Error renaming save");
   } finally {
     modalHtml.remove();
+  }
+}
+
+async function normalizeSlots(gameId, startIndex = 0) {
+  try {
+    // Get all saves for this game
+    const allSaves = await allVivaSaves();
+    const gameSaves = allSaves
+      .filter(save => save.key[0] === gameId)
+      .sort((a, b) => {
+        // Sort by creation timestamp if available, otherwise by slot number
+        if (a.value.timestamp && b.value.timestamp) {
+          return new Date(a.value.timestamp) - new Date(b.value.timestamp);
+        }
+        return a.key[1] - b.key[1];
+      });
+    
+    if (gameSaves.length === 0) {
+      showMessage("No saves found for this game");
+      return;
+    }
+
+    // Open a single database connection for all operations
+    const db = await new Promise((resolve, reject) => {
+      const request = indexedDB.open("quest-viva-saves", 1);
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve(request.result);
+    });
+
+    // For each save, if its slot doesn't match expected sequence, update it
+    for (let i = 0; i < gameSaves.length; i++) {
+      const save = gameSaves[i];
+      const currentSlot = save.key[1];
+      const newSlot = startIndex + i;
+      
+      // Only update if slot number needs to change
+      if (currentSlot !== newSlot) {
+        // Create updated save with new slot number
+        const updatedSave = {
+          gameId: save.key[0],
+          slotIndex: newSlot,
+          data: save.value.data,
+          name: save.value.name,
+          timestamp: save.value.timestamp
+        };
+        
+        // Add the new entry first
+        await new Promise((resolve, reject) => {
+          const tx = db.transaction("saves", "readwrite");
+          const store = tx.objectStore("saves");
+          const request = store.put(updatedSave);
+          request.onsuccess = () => resolve();
+          request.onerror = () => reject(request.error);
+        });
+        
+        // Delete the old entry
+        await new Promise((resolve, reject) => {
+          const tx = db.transaction("saves", "readwrite");
+          const store = tx.objectStore("saves");
+          const request = store.delete([gameId, currentSlot]);
+          request.onsuccess = () => resolve();
+          request.onerror = () => reject(request.error);
+        });
+      }
+    }
+
+    await displaySavesList();
+    showMessage(`Normalized ${gameSaves.length} save slots successfully`);
+  } catch (error) {
+    console.error("Error normalizing slots:", error);
+    showMessage("Error normalizing slots: " + error.message);
   }
 }
 
