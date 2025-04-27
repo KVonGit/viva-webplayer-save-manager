@@ -1,17 +1,8 @@
-/**
- * fileoverview Viva Save Manager - Manages save files for Viva web player games
- * version 1.0.2-beta
- * author KV and GHC
- * license MIT
- *
- * description
- * Provides functionality to manage, backup, and restore save files
- * for games running in the Viva web player environment.
- */
-
 window.isVivaPlayer = true;
+window.qvsmVersion = "1.0.5 beta";
 
 if (window.location.href.startsWith("res")) {
+  // This is the Windows app.
   window.isVivaPlayer = false;
   setTimeout(() => {
     $("#divOutput").html(
@@ -25,6 +16,7 @@ if (window.location.href.startsWith("res")) {
 console.log("Not the desktop app, continuing...");
 
 if (window.location.href.includes("Play.aspx")) {
+  // This is the v5 WebPlayer app.
   window.isVivaPlayer = false;
   setTimeout(() => {
     $("#divOutput").html(
@@ -55,113 +47,212 @@ console.log("Not the v5 WebPlayer, continuing...");
     throw new Error("Reloading file with cache buster: " + bustedUrl);
   }
 })();
-console.log("Cache buster applied, continuing...");
+
+console.log("Cache buster applied, continuing with version " + qvsmVersion + "...");
 
 function replaceDivOutput() {
   const newDivOutput = `<div class="container save-manager">
-      <div class="row mb-4">
-        <div class="col">
-          <div class="card">
-            <div class="card-header">
-              <h2 class="h4 mb-0">Available Saves <button onclick="displaySavesList()">🔄</button></h2>
+  <div class="row mb-4">
+    <div class="col">
+      <div class="card">
+        <div class="d-flex justify-content-between align-items-center">
+          <!-- Separate non-collapsible container for the button -->
+          <button onclick="displaySavesList()" class="btn btn-sm btn-outline-secondary me-2">🔄</button>
+          
+          <!-- Collapsible header without the button -->
+          <div class="card-header flex-grow-1 d-flex justify-content-between align-items-center" 
+               data-bs-toggle="collapse" 
+               data-bs-target="#savesList-container" 
+               aria-expanded="true">
+            <h2 class="h4 mb-0">Available Saves</h2>
+            <span class="collapse-indicator">▼</span>
+          </div>
+        </div>
+        <div class="collapse show" id="savesList-container">
+          <div class="card-body">
+            <div id="savesList" class="list-group">Loading saves...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="row mb-4">
+    <div class="col">
+      <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center"
+             data-bs-toggle="collapse" 
+             data-bs-target="#upload-container" 
+             aria-expanded="false">
+          <h2 class="h4 mb-0">Upload Save Game</h2>
+          <span class="collapse-indicator">▼</span>
+        </div>
+        <div class="collapse" id="upload-container">
+          <div class="card-body">
+            <div class="input-group mb-2">
+              <input
+                type="file"
+                class="form-control"
+                id="saveFileInput"
+                accept=".xml,.aslx,.quest-viva-save,.quest-save,.quest-v5webplayer-save"
+              />
             </div>
-            <div class="card-body">
-              <div id="savesList" class="list-group">Loading saves...</div>
+            <div class="input-group">
+              <input
+                type="text"
+                class="form-control"
+                id="saveNameInput"
+                placeholder="Save name (optional)"
+              />
+              <button class="btn btn-primary" onclick="handleFileUpload()">
+                Upload
+              </button>
             </div>
           </div>
         </div>
       </div>
-      <div class="row mb-4">
-        <div class="col">
-          <div class="card">
-            <div class="card-header">
-              <h2 class="h4 mb-0">Upload Save Game</h2>
-            </div>
-            <div class="card-body">
-              <div class="input-group mb-2">
-                <input
-                  type="file"
-                  class="form-control"
-                  id="saveFileInput"
-                  accept=".xml,.aslx,.quest-viva-save,.quest-save,.quest-v5webplayer-save"
-                />
-              </div>
-              <div class="input-group">
-                <input
-                  type="text"
-                  class="form-control"
-                  id="saveNameInput"
-                  placeholder="Save name (optional)"
-                />
-                <button class="btn btn-primary" onclick="handleFileUpload()">
-                  Upload
-                </button>
-              </div>
-            </div>
-          </div>
+    </div>
+  </div>
+  
+  <div class="row">
+    <div class="col">
+      <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center"
+             data-bs-toggle="collapse" 
+             data-bs-target="#attribute-container" 
+             aria-expanded="false">
+          <h2 class="h4 mb-0">Attribute Viewer</h2>
+          <span class="collapse-indicator">▼</span>
         </div>
-      </div>
-      <div class="row">
-        <div class="col">
-          <div class="card">
-            <div class="card-header">
-              <h2 class="h4 mb-0">Attribute Viewer</h2>
-            </div>
-            <div class="card-body">
-              <div class="row g-2">
-                <div class="col-12">
-                  <div class="d-flex align-items-center">
-                    <select class="form-select" id="gameIdSelect">
-                      <option value="">-- Select Game --</option>
-                    </select>
-                    <span id="selectedGameName" class="ms-2 text-muted"></span>
-                  </div>
-                </div>
-                <div class="col-12">
-                  <select class="form-select" id="slotSelect">
-                    <option value="">-- Select Slot --</option>
+        <div class="collapse" id="attribute-container">
+          <div class="card-body">
+            <div class="row g-2">
+              <div class="col-12">
+                <div class="d-flex align-items-center">
+                  <select class="form-select" id="gameIdSelect">
+                    <option value="">-- Select Game --</option>
                   </select>
+                  <span id="selectedGameName" class="ms-2 text-muted"></span>
                 </div>
               </div>
-              <div class="input-group mb-3">
-                <input
-                  type="text"
-                  class="form-control"
-                  id="objectPath"
-                  placeholder="Object path (e.g. player)"
-                /><input
-                  type="text"
-                  class="form-control"
-                  id="attrName"
-                  placeholder="Attribute name"
-                /><button class="btn btn-primary" onclick="getAttributeValue()">
-                  Get Value
-                </button>
+              <div class="col-12">
+                <select class="form-select" id="slotSelect">
+                  <option value="">-- Select Slot --</option>
+                </select>
               </div>
-              <div
-                id="attrValue"
-                class="alert alert-info"
-                style="display: none"
-              ></div>
             </div>
+            <div class="input-group mb-3">
+              <input
+                type="text"
+                class="form-control"
+                id="objectPath"
+                placeholder="Object path (e.g. player)"
+              /><input
+                type="text"
+                class="form-control"
+                id="attrName"
+                placeholder="Attribute name"
+              /><button class="btn btn-primary" onclick="getAttributeValue()">
+                Get Value
+              </button>
+            </div>
+            <div
+              id="attrValue"
+              class="alert alert-info"
+              style="display: none"
+            ></div>
           </div>
         </div>
       </div>
-      <div
-        id="messageDialog"
-        class="alert alert-success position-fixed top-0 start-50 translate-middle-x mt-3"
-        style="display: none; z-index: 1050"
-        role="alert"
-      >
-        <span id="messageText"></span>
-      </div>
-    </div>`;
+    </div>
+  </div>
+  
+  <div
+    id="messageDialog"
+    class="alert alert-success position-fixed top-0 start-50 translate-middle-x mt-3"
+    style="display: none; z-index: 1050"
+    role="alert"
+  >
+    <span id="messageText"></span>
+  </div>
+</div>`;
   const divOutput = document.getElementById("divOutput");
   divOutput.innerHTML = newDivOutput;
+
+  // Add responsive styles
+  const styleElement = document.createElement('style');
+  styleElement.textContent = `
+    /* Base styles */
+    .save-manager .btn-group {
+      flex-wrap: wrap;
+    }
+    
+    /* Mobile styles */
+    @media (max-width: 576px) {
+      .save-manager .btn-group .btn {
+        font-size: 0.7rem;
+        padding: 0.2rem 0.4rem;
+      }
+      
+      .save-manager .list-group-item {
+        padding: 0.5rem;
+      }
+      
+      .save-manager .d-flex {
+        flex-direction: column;
+        align-items: flex-start !important;
+      }
+      
+      .save-manager .d-flex .btn-group {
+        margin-top: 0.5rem;
+        width: 100%;
+      }
+      
+      .save-manager h3.h5 {
+        font-size: 1rem;
+      }
+      
+      .save-manager .input-group {
+        flex-direction: column;
+      }
+      
+      .save-manager .input-group > * {
+        width: 100%;
+        margin-right: 0;
+        border-radius: 0.25rem !important;
+        margin-bottom: 0.5rem;
+      }
+    }
+    
+    /* Tablet styles */
+    @media (min-width: 577px) and (max-width: 991px) {
+      .save-manager .btn-group .btn {
+        font-size: 0.8rem;
+        padding: 0.25rem 0.5rem;
+      }
+    }
+    
+    /* Section collapsible styling */
+    .save-manager .card-header {
+      cursor: pointer;
+    }
+    
+    .save-manager .collapse-indicator {
+      transition: transform 0.3s;
+    }
+    
+    .save-manager .collapsed .collapse-indicator {
+      transform: rotate(-90deg);
+    }
+    
+    .save-manager .game-header {
+      cursor: pointer;
+    }
+  `;
+  document.head.appendChild(styleElement);
 }
 
 async function displaySavesList() {
-  if (!window.isVivaPlayer) return;
   try {
     const saves = await allVivaSaves();
     const gameGroups = {};
@@ -187,25 +278,36 @@ async function displaySavesList() {
 
     let html = "";
     for (const [gameId, game] of Object.entries(gameGroups)) {
+      const gameGroupId = `game-${gameId.replace(/[^a-zA-Z0-9]/g, '')}`;
+      
       html += `<div class="game-group mb-4">
-          <div class="d-flex align-items-center justify-content-between mb-2">
-            <div>
-              <div class="d-flex align-items-center">
-                <h3 class="h5 mb-0 me-2">${game.name}</h3>
-                <a href="https://play.textadventures.co.uk/textadventures/${gameId}" 
-                   class="text-decoration-none" 
-                   target="_blank" 
-                   title="Play ${game.name}">🗗</a>
-              </div>
-              <small class="text-muted d-block">ID: ${gameId}</small>
-            </div>
-            <button class="btn btn-sm btn-outline-danger" 
-                    onclick="deleteAllSavesForGame('${gameId}')"
-                    title="Delete all saves for this game">
-                    Delete All
-            </button>
-          </div>
-          <ul class="list-group">`;
+  <div class="d-flex align-items-center mb-2">
+    <div class="game-header me-auto" 
+         data-bs-toggle="collapse" 
+         data-bs-target="#${gameGroupId}" 
+         aria-expanded="true"
+         style="cursor: pointer;">
+      <div class="d-flex align-items-center">
+        <span class="collapse-indicator me-2">▼</span>
+        <h3 class="h5 mb-0 me-2">${game.name}</h3>
+      </div>
+      <small class="text-muted d-block">ID: ${gameId}</small>
+    </div>
+    
+    <!-- Buttons moved outside the collapsible trigger area -->
+    <div class="game-actions">
+      <a href="https://play.textadventures.co.uk/textadventures/${gameId}" 
+         class="text-decoration-none me-2" 
+         target="_blank" 
+         title="Play ${game.name}">▶️</a>
+      <a href="javascript:void(0)" 
+         class="text-decoration-none" 
+         onclick="event.preventDefault(); event.stopPropagation(); deleteAllSavesForGame('${gameId}')"
+         title="Delete all saves for this game">❌</a>
+    </div>
+  </div>
+  <div class="collapse show" id="${gameGroupId}">
+    <ul class="list-group">`;
 
       game.saves.sort((a, b) => a.slot - b.slot);
       game.saves.forEach((save) => {
@@ -231,7 +333,7 @@ async function displaySavesList() {
                 </li>`;
       });
 
-      html += `</ul></div>`;
+      html += `</ul></div></div>`;
     }
 
     document.getElementById("savesList").innerHTML = html || "No saves found";
@@ -838,7 +940,6 @@ async function importSaveFromXML(xmlString, customName = null) {
 }
 
 async function populateGameSelect() {
-  if (!window.isVivaPlayer) return;
   try {
     const saves = await allVivaSaves();
     const gameIds = [...new Set(saves.map((save) => save.key[0]))];
