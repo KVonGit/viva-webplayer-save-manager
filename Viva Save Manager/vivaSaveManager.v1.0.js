@@ -1,57 +1,17 @@
-window.isVivaPlayer = true;
-window.qvsmVersion = "1.0.8 beta";
+window.isVivaPlayer = typeof WebPlayer !== 'undefined';
 
-if (window.location.href.startsWith("res")) {
-  // This is the Windows app.
-  window.isVivaPlayer = false;
+if (!isVivaPlayer) {
   setTimeout(() => {
-    $("#divOutput").html(
-      "<center><h1>This only works in the Viva WebPlayer app.</h1></center>"
-    );
+    $("#divOutput").html("<center><h1>This only works in the Viva WebPlayer app.</h1></center>");
   }, 500);
-  throw new Error(
-    "Viva Save Manager script is not compatible with the Windows app. Exiting. Not an actual error."
-  );
+  throw new Error("Viva Save Manager script is not compatible with the Windows app. Exiting.");
 }
-console.log("Not the desktop app, continuing...");
-
-if (window.location.href.includes("Play.aspx")) {
-  // This is the v5 WebPlayer app.
-  window.isVivaPlayer = false;
-  setTimeout(() => {
-    $("#divOutput").html(
-      "<center><h1>This only works in the Viva WebPlayer app.</h1></center>"
-    );
-  }, 500);
-  throw new Error(
-    "Viva Save Manager script is not compatible with the v5 WebPlayer app. Exiting. Not an actual error."
-  );
-}
-console.log("Not the v5 WebPlayer, continuing...");
-
-(function () {
-  const currentScript = document.currentScript;
-
-  if (!currentScript.src.includes("?c=")) {
-    const bustedUrl = currentScript.src + "?c=" + Date.now();
-
-    const script = document.createElement("script");
-    script.src = bustedUrl;
-
-    script.onload = () => {
-      console.log("Loaded fresh file:", bustedUrl);
-    };
-
-    document.head.appendChild(script);
-
-    throw new Error("Reloading file with cache buster: " + bustedUrl);
-  }
-})();
-
-console.log("Cache buster applied, continuing with version " + qvsmVersion + "...");
-
 function replaceDivOutput() {
-  const newDivOutput = `<div class="container save-manager">
+  const newDivOutput = `<div class="titlebar">
+        <center><img  class="image" src="qvsm-cover.png" type="image/png" /></center>
+        <h1 class="text-center">Viva Save Manager</h1>
+    </div><br/>
+    <div class="container save-manager">
   <div class="row mb-4">
     <div class="col">
       <div class="card">
@@ -150,59 +110,6 @@ function replaceDivOutput() {
     </div>
   </div>
   
-  <div class="row">
-    <div class="col">
-      <div class="card">
-        <div class="card-header d-flex justify-content-between align-items-center"
-             data-bs-toggle="collapse" 
-             data-bs-target="#attribute-container" 
-             aria-expanded="false">
-          <h2 class="h4 mb-0">Attribute Viewer</h2>
-          <span class="collapse-indicator">▼</span>
-        </div>
-        <div class="collapse" id="attribute-container">
-          <div class="card-body">
-            <div class="row g-2">
-              <div class="col-12">
-                <div class="d-flex align-items-center">
-                  <select class="form-select" id="gameIdSelect">
-                    <option value="">-- Select Game --</option>
-                  </select>
-                  <span id="selectedGameName" class="ms-2 text-muted"></span>
-                </div>
-              </div>
-              <div class="col-12">
-                <select class="form-select" id="slotSelect">
-                  <option value="">-- Select Slot --</option>
-                </select>
-              </div>
-            </div>
-            <div class="input-group mb-3">
-              <input
-                type="text"
-                class="form-control"
-                id="objectPath"
-                placeholder="Object path (e.g. player)"
-              /><input
-                type="text"
-                class="form-control"
-                id="attrName"
-                placeholder="Attribute name"
-              /><button class="btn btn-primary" onclick="getAttributeValue()">
-                Get Value
-              </button>
-            </div>
-            <div
-              id="attrValue"
-              class="alert alert-info"
-              style="display: none"
-            ></div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-  
   <div
     id="messageDialog"
     class="alert alert-success position-fixed top-0 start-50 translate-middle-x mt-3"
@@ -259,6 +166,16 @@ function replaceDivOutput() {
         margin-bottom: 0.5rem;
       }
     }
+    .titlebar {
+          background-color: #686b6e;
+          color: white;
+          padding: 10px;
+          text-align: center;
+      }
+      .titlebar h1 {
+          margin: 0;
+          font-size: 24px;
+      }
     
     /* Tablet styles */
     @media (min-width: 577px) and (max-width: 991px) {
@@ -504,70 +421,11 @@ async function copyVivaSaveToSlot(
   }
 }
 
-async function saveVivaSave(id, slot = 0, newData, name = null) {
-  try {
-    const saveData = {
-      gameId: id,
-      slotIndex: slot,
-      data: newData.data,
-      name: name || "Saved game at " + new Date().toISOString().replace('T', ' ').substring(0, 19),
-      timestamp: new Date(),
-    };
-
-    const db = await new Promise((resolve, reject) => {
-      const request = indexedDB.open("quest-viva-saves", 1);
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => resolve(request.result);
-    });
-
-    const tx = db.transaction("saves", "readwrite");
-    const store = tx.objectStore("saves");
-
-    await new Promise((resolve, reject) => {
-      const request = store.put(saveData);
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
-    });
-
-    // await displaySavesList();
-    console.log("Save data saved successfully:", saveData);
-    return saveData;
-  } catch (error) {
-    console.error("Error in saveVivaSave:", error);
-    throw error;
-  }
-}
-
 async function copyVivaSave(id, originalSlot = 0, newName = null) {
   const highestSlot = await getHighestSlot(id);
   const newSlot = highestSlot + 1;
 
   return copyVivaSaveToSlot(id, originalSlot, newSlot, newName);
-}
-
-// Clone to different game ID
-// UNUSED FUNCTION
-// No clue why we'd want to do this, but here it is anyway =)
-async function cloneVivaSave(
-  newId,
-  originalid,
-  originalSlot = 0,
-  newSlot = 0,
-  newName = null,
-  overwrite = false
-) {
-  let save = await getVivaSave(originalId, originalSlot);
-  if (!save) throw new Error("Original save not found");
-
-  let clonedSave = {
-    ...save,
-    gameId: newId,
-    slotIndex: newSlot,
-    name: newName || `Cloned from ${originalId}`,
-    timestamp: new Date(),
-  };
-
-  return saveToDB(clonedSave, newId, newSlot, overwrite);
 }
 
 function saveToDB(saveData, gameId, slotIndex, overwrite = false) {
@@ -873,9 +731,10 @@ function parseVivaSaveXML(xmlString) {
   };
 }
 
-async function getAttributeValue() {
-  const gameId = document.getElementById("gameIdSelect").value;
-  const slot = document.getElementById("slotSelect").value;
+async function getAttributeValue(gameId, slot) {
+  // Unused, but keeping this. Too much work to get it working. =)
+  if (typeof gameId == 'undefined') gameId = document.getElementById("gameIdSelect").value;
+  if (typeof slot == 'undefined') slot = document.getElementById("slotSelect").value;
   const objectPath = document.getElementById("objectPath").value;
   const attrName = document.getElementById("attrName").value;
 
@@ -978,79 +837,6 @@ async function importSaveFromXML(xmlString, customName = null) {
   });
 
   await displaySavesList();
-}
-
-async function populateGameSelect() {
-  try {
-    const saves = await allVivaSaves();
-    const gameIds = [...new Set(saves.map((save) => save.key[0]))];
-    const select = document.getElementById("gameIdSelect");
-
-    while (select.options.length > 1) {
-      select.remove(1);
-    }
-
-    gameIds.forEach((id) => {
-      const option = document.createElement("option");
-      option.value = id;
-      option.textContent = id;
-      select.appendChild(option);
-    });
-
-    select.onchange = updateSlotSelect;
-  } catch (error) {
-    console.error("Error populating game select:", error);
-  }
-}
-
-async function updateSlotSelect() {
-  const gameId = document.getElementById("gameIdSelect").value;
-  const select = document.getElementById("slotSelect");
-
-  while (select.options.length > 1) {
-    select.remove(1);
-  }
-
-  if (!gameId) return;
-
-  try {
-    const saves = await allVivaSaves();
-    const gameSaves = saves.filter((save) => save.key[0] === gameId);
-
-    if (gameSaves.length > 0) {
-      const xmlString = decodeSaveData(gameSaves[0].value.data);
-      const saveData = parseVivaSaveXML(xmlString);
-      const gameInfo = saveData.getGameInfo();
-
-      const gameIdSelect = document.getElementById("gameIdSelect");
-      const gameNameSpan =
-        document.getElementById("selectedGameName") ||
-        (() => {
-          const span = document.createElement("span");
-          span.id = "selectedGameName";
-          span.className = "ms-2 text-muted";
-          gameIdSelect.parentNode.appendChild(span);
-          return span;
-        })();
-      gameNameSpan.textContent = `(${gameInfo.name})`;
-    }
-
-    const slots = gameSaves.map((save) => ({
-      slot: save.key[1],
-      name: save.value.name,
-    }));
-
-    slots.sort((a, b) => a.slot - b.slot);
-
-    slots.forEach(({ slot, name }) => {
-      const option = document.createElement("option");
-      option.value = slot;
-      option.textContent = `Slot ${slot}: ${name}`;
-      select.appendChild(option);
-    });
-  } catch (error) {
-    console.error("Error updating slot select:", error);
-  }
 }
 
 function showMessage(message, autoCloseMs = 2000) {
