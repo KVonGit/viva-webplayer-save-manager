@@ -6,12 +6,8 @@ if (!isVivaPlayer) {
   }, 500);
   throw new Error("Viva Save Manager script is not compatible with the Windows app. Exiting.");
 }
-function replaceDivOutput() {
-  const newDivOutput = `<div class="titlebar">
-        <center><img  class="image" src="qvsm-cover.png" type="image/png" /></center>
-        <h1 class="text-center">Viva Save Manager</h1>
-    </div><br/>
-    <div class="container save-manager">
+function replaceDivOutput(imgSrc) {
+  const newDivOutput = `<div class="container save-manager">
   <div class="row mb-4">
     <div class="col">
       <div class="card">
@@ -166,16 +162,6 @@ function replaceDivOutput() {
         margin-bottom: 0.5rem;
       }
     }
-    .titlebar {
-          background-color: #686b6e;
-          color: white;
-          padding: 10px;
-          text-align: center;
-      }
-      .titlebar h1 {
-          margin: 0;
-          font-size: 24px;
-      }
     
     /* Tablet styles */
     @media (min-width: 577px) and (max-width: 991px) {

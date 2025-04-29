@@ -21,6 +21,7 @@
       JS.eval ("const bootstrapScript = document.createElement(\"script\"); bootstrapScript.src = \"https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js\"; document.head.appendChild(bootstrapScript);")
       JS.eval ("const lnk = document.createElement('link'); lnk.rel='shortcut icon'; lnk.href='" + GetFileURL("qvsm-cover.png") + "'; lnk.type = 'image/png'; document.head.appendChild(lnk);")
     </inituserinterface>
+    <publishfileextensions>*.jpg;*.jpeg;*.png;*.gif;*.js;*.wav;*.mp3;*.htm;*.html;*.svg;*.ogg;*.ogv;*.ico;*.zip</publishfileextensions>
   </game>
   <object name="room">
     <inherit name="editor_room" />
@@ -30,7 +31,7 @@
     </description>
     <enter type="script">
       JS.eval ("$('#qv-status').hide();")
-      JS.replaceDivOutput ()
+      JS.replaceDivOutput (GetFileURL("qvsm-cover.png"))
       JS.displaySavesList ()
       JS.eval ("$('.save-manager').css({'max-width': '800px', 'margin': '0 auto', 'padding': '20px'});")
       JS.eval ("$('.form-select').css('max-width','fit-content');")
