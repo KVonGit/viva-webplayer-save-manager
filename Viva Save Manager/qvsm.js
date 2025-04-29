@@ -1,5 +1,5 @@
 window.isVivaPlayer = true;
-window.qvsmVersion = "1.0.6 beta";
+window.qvsmVersion = "1.0.8 beta";
 
 if (window.location.href.startsWith("res")) {
   // This is the Windows app.
@@ -108,6 +108,42 @@ function replaceDivOutput() {
                 Upload
               </button>
             </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row mb-4">
+    <div class="col">
+      <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center"
+             data-bs-toggle="collapse" 
+             data-bs-target="#v5-import-container" 
+             aria-expanded="false">
+          <h2 class="h4 mb-0">Import from v5 WebPlayer</h2>
+          <span class="collapse-indicator">▼</span>
+        </div>
+        <div class="collapse" id="v5-import-container">
+          <div class="card-body">
+          <p>Enter a game ID or URL from textadventures.co.uk:</p>
+          <div class="input-group mb-3">
+            <input
+              type="text"
+              class="form-control"
+              id="v5GameIdInput"
+              placeholder="Game ID or URL (e.g. textadventures.co.uk/games/view/id)"
+            />
+            <button class="btn btn-primary" onclick="importFromV5Player()">
+              Import
+            </button>
+          </div>
+          <small class="text-muted">
+            <a href="https://textadventures.co.uk/" target="_blank">
+              Browse games on textadventures.co.uk
+            </a>
+            then copy and paste the URL here.
+          </small>
           </div>
         </div>
       </div>
@@ -1362,4 +1398,91 @@ async function normalizeSlots(gameId, startIndex = 0) {
 
 function scrollToEnd() {
   // Do nothing
+}
+
+// Add this function to parse different URL formats
+function extractGameIdFromUrl(input) {
+  // If it's already a simple ID with no slashes or special characters, return it
+  if (/^[a-zA-Z0-9_-]+$/.test(input)) {
+    return input;
+  }
+  
+  // Try to extract ID from various URL patterns
+  const patterns = [
+    /\/view\/([^/]+)/,
+    /\/play\/([^/]+)/,
+    /\/resume\/([^/]+)/,
+    /\/textadventures\/([^/]+)/,
+    /[?&]id=([^&]+)/
+  ];
+
+  for (const pattern of patterns) {
+    const match = input.match(pattern);
+    if (match) {
+      return match[1];
+    }
+  }
+  
+  return null; // No match found
+}
+
+// Modified importFromV5Player function
+async function importFromV5Player() {
+  const userInput = document.getElementById("v5GameIdInput").value.trim();
+  
+  if (!userInput) {
+    showMessage("Please enter a game ID or URL", 3000);
+    return;
+  }
+  
+  // Extract game ID from URL if necessary
+  const gameId = extractGameIdFromUrl(userInput);
+  
+  if (!gameId) {
+    showMessage("Could not determine game ID from input", 3000);
+    return;
+  }
+  
+  showMessage(`Fetching save data for game ${gameId}...`, 10000);
+  
+  try {
+    // Fetch the v5 save data
+    const response = await fetch(`https://textadventures.co.uk/games/load/${gameId}`, {
+      credentials: 'include'  // Equivalent to withCredentials: true
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch save data (${response.status})`);
+    }
+    
+    const result = await response.json();
+    
+    if (!result.Data) {
+      throw new Error("No save data found for this game");
+    }
+    
+    // Convert the base64 data to XML
+    function base64ToBytes(base64) {
+      const binString = atob(base64);
+      return Uint8Array.from(binString, (m) => m.codePointAt(0));
+    }
+    
+    let saveData = new TextDecoder().decode(base64ToBytes(result.Data));
+    
+    // Prepare XML with game ID
+    const xmlString = 
+      '<?xml version="1.0"?>\n<!-- viva-save-manager game-id="' +
+      gameId +
+      '" -->\n' +
+      saveData;
+    
+    // Import it using your existing function
+    await importSaveFromXML(xmlString, "Imported from v5 WebPlayer");
+    
+    showMessage("v5 save successfully imported!", 3000);
+    document.getElementById("v5GameIdInput").value = "";
+  } catch (error) {
+    console.error("Error importing v5 save:", error);
+    showMessage("Error: " + error.message, 5000);
+  }
 }
