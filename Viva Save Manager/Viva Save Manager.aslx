@@ -4,11 +4,11 @@
   <include ref="Core.aslx" />
   <game name="Viva Save Manager">
     <gameid>7cc5084c-81d1-4d38-8c5b-05d50762f74d</gameid>
-    <version>1.0.7 beta</version>
+    <version>1.0</version>
     <firstpublished>2025</firstpublished>
     <subtitle>v{game.version}</subtitle>
     <author>KV and GHC</author>
-    <description><![CDATA[📁 A friendly tool to help you manage your Viva game saves!<br/><br/>🔄 Copy, rename, delete, and backup your progress<br/>💾 Import and export save files<br/>🔎 View save data with the Attribute Viewer<br/>▶️ Launch games directly from the manager<br/><br/>Manage all your Quest game saves in one convenient place. Works with any game running in the Viva web player environment.]]></description>
+    <description><![CDATA[📁 A friendly tool to help you manage your Viva game saves!<br/><br/>🔄 Copy, rename, delete, and backup your progress<br/>💾 Import and export save files<br/>▶️ Launch games directly from the manager<br/><br/>Manage all your Quest game saves in one convenient place. Works with any game running in the Viva web player environment.]]></description>
     <showpanes type="boolean">false</showpanes>
     <showcommandbar type="boolean">false</showcommandbar>
     <showlocation type="boolean">false</showlocation>
@@ -21,6 +21,7 @@
       JS.eval ("const bootstrapScript = document.createElement(\"script\"); bootstrapScript.src = \"https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js\"; document.head.appendChild(bootstrapScript);")
       JS.eval ("const lnk = document.createElement('link'); lnk.rel='shortcut icon'; lnk.href='" + GetFileURL("qvsm-cover.png") + "'; lnk.type = 'image/png'; document.head.appendChild(lnk);")
     </inituserinterface>
+    <publishfileextensions>*.jpg;*.jpeg;*.png;*.gif;*.js;*.wav;*.mp3;*.htm;*.html;*.svg;*.ogg;*.ogv;*.ico;*.zip</publishfileextensions>
   </game>
   <object name="room">
     <inherit name="editor_room" />
@@ -30,9 +31,8 @@
     </description>
     <enter type="script">
       JS.eval ("$('#qv-status').hide();")
-      JS.replaceDivOutput ()
+      JS.replaceDivOutput (GetFileURL("qvsm-cover.png"))
       JS.displaySavesList ()
-      JS.populateGameSelect ()
       JS.eval ("$('.save-manager').css({'max-width': '800px', 'margin': '0 auto', 'padding': '20px'});")
       JS.eval ("$('.form-select').css('max-width','fit-content');")
     </enter>
@@ -41,5 +41,5 @@
       <inherit name="editor_player" />
     </object>
   </object>
-  <javascript src="qvsm.js" />
+  <javascript src="vivaSaveManager.v1.0.js" />
 </asl>
