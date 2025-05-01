@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Viva Save Manager</title>
+    <link rel="icon" href="favicon.ico" type="image/x-icon" />
+    <script src="js/bootstrap.bundle.min.js"></script>
+    <link rel="stylesheet" href="css/bootstrap.min.css">
+    <link rel="stylesheet" href="css/bootstrap-icons.css">
+    <script src="js/jquery-2.1.1.min.js"></script>
+    <script src="js/playercore.js"></script>
+    <script src="js/player.js"></script>
+    <script src="js/playerweb.js"></script>
+
+    <style>
+        .save-manager {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .form-select {
+            max-width: fit-content;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="divOutput">
+        <div class="titlebar">
+            <center><img class="image" src="favicon.ico" type="image/x-icon" /></center>
+            <h1 class="text-center">Viva Save Manager</h1>
+        </div><br />
+        <div class="container save-manager">
+            <div class="row mb-4">
+                <div class="col">
+                    <div class="card">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <!-- Separate non-collapsible container for the button -->
+                            <button onclick="displaySavesList()"
+                                class="btn btn-sm btn-outline-secondary me-2">🔄</button>
+
+                            <!-- Collapsible header without the button -->
+                            <div class="card-header flex-grow-1 d-flex justify-content-between align-items-center"
+                                data-bs-toggle="collapse" data-bs-target="#savesList-container" aria-expanded="true">
+                                <h2 class="h4 mb-0">Available Saves</h2>
+                                <span class="collapse-indicator">▼</span>
+                            </div>
+                        </div>
+                        <div class="collapse show" id="savesList-container">
+                            <div class="card-body">
+                                <div id="savesList" class="list-group">Loading saves...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row mb-4">
+                <div class="col">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center"
+                            data-bs-toggle="collapse" data-bs-target="#upload-container" aria-expanded="false">
+                            <h2 class="h4 mb-0">Upload Save Game</h2>
+                            <span class="collapse-indicator">▼</span>
+                        </div>
+                        <div class="collapse" id="upload-container">
+                            <div class="card-body">
+                                <div class="input-group mb-2">
+                                    <input type="file" class="form-control" id="saveFileInput"
+                                        accept=".xml,.aslx,.quest-viva-save,.quest-save,.quest-v5webplayer-save" />
+                                </div>
+                                <div class="input-group">
+                                    <input type="text" class="form-control" id="saveNameInput"
+                                        placeholder="Save name (optional)" />
+                                    <button class="btn btn-primary" onclick="handleFileUpload()">
+                                        Upload
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row mb-4">
+                <div class="col">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center"
+                            data-bs-toggle="collapse" data-bs-target="#v5-import-container" aria-expanded="false">
+                            <h2 class="h4 mb-0">Import from v5 WebPlayer</h2>
+                            <span class="collapse-indicator">▼</span>
+                        </div>
+                        <div class="collapse" id="v5-import-container">
+                            <div class="card-body">
+                                <p>Enter a game ID or URL from textadventures.co.uk:</p>
+                                <div class="input-group mb-3">
+                                    <input type="text" class="form-control" id="v5GameIdInput"
+                                        placeholder="Game ID or URL (e.g. textadventures.co.uk/games/view/id)" />
+                                    <button class="btn btn-primary" onclick="importFromV5Player()">
+                                        Import
+                                    </button>
+                                </div>
+                                <small class="text-muted">
+                                    <a href="https://textadventures.co.uk/" target="_blank">
+                                        Browse games on textadventures.co.uk
+                                    </a>
+                                    then copy and paste the URL here.
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="messageDialog" class="alert alert-success position-fixed top-0 start-50 translate-middle-x mt-3"
+                style="display: none; z-index: 1050" role="alert">
+                <span id="messageText"></span>
+            </div>
+        </div>
+    </div>
+    <script>const htmlVersion = true;</script>
+    <script src="js/qvsm.js"></script>
+    <script>
+        function ensureDBExists() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open("quest-viva-saves", 1);
+
+                request.onupgradeneeded = function (event) {
+                    const db = event.target.result;
+                    if (!db.objectStoreNames.contains('saves')) {
+                        db.createObjectStore('saves', { keyPath: ['gameId', 'slotIndex'] });
+                    }
+                };
+
+                request.onsuccess = () => resolve();
+                request.onerror = () => reject();
+            });
+        }
+
+        async function init() {
+            // window.isVivaPlayer = true;
+            await ensureDBExists();
+            displaySavesList();
+        }
+
+        init();
+    </script>
+</body>
+
+</html>
