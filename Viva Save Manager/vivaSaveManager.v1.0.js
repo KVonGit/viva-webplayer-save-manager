@@ -1258,3 +1258,155 @@ async function importFromV5Player() {
     showMessage("Error: " + error.message, 5000);
   }
 }
+
+// Helper to load JSZip dynamically
+function loadJSZip() {
+  return new Promise((resolve, reject) => {
+    if (window.JSZip) {
+      resolve();
+      return;
+    }
+    
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+    script.onload = resolve;
+    script.onerror = reject;
+    document.head.appendChild(script);
+  });
+}
+
+async function createSuperSaveDownload(gameId, slotIndex) {
+  try {
+    // Show initial progress message
+    showMessage("Preparing super save download...", 10000);
+    
+    // 1. Load JSZip if not already loaded
+    await loadJSZip();
+    
+    // 2. Get the save data
+    const save = await getVivaSave(gameId, slotIndex);
+    if (!save) {
+      showMessage("Save not found", 3000);
+      return;
+    }
+    
+    // 3. Get the save XML content
+    const xmlString = decodeSaveData(save.data);
+    
+    // 4. Create a new ZIP file
+    const zip = new JSZip();
+    
+    // 5. Add the save data as game.aslx
+    zip.file("game.aslx", xmlString);
+    
+    // 6. Parse save XML to extract game info
+    const parser = parseVivaSaveXML(xmlString);
+    const gameInfo = parser.getGameInfo();
+    const gameName = gameInfo?.name || "Unknown";
+    
+    // 7. Extract the game ID from the ASLX file
+    // First look for the <gameid> element
+    const gameIdMatch = xmlString.match(/<gameid>([^<]+)<\/gameid>/);
+    const internalGameId = gameIdMatch ? gameIdMatch[1] : gameId;
+    
+    // 8. Build correct resource base URL using media.textadventures.co.uk format
+    const resourceBaseUrl = `https://media.textadventures.co.uk/gameresources/${internalGameId}/`;
+    console.log("Using resource base URL:", resourceBaseUrl);
+    
+    // 9. Extract resources references
+    const resourceRefs = extractResourceReferences(xmlString);
+    console.log("Found resources:", resourceRefs);
+    
+    showMessage(`Creating super save with ${resourceRefs.length} resources...`, 0);
+    
+    // 10. Track progress
+    let successCount = 0;
+    let failCount = 0;
+    
+    // 11. Add each resource to the ZIP
+    for (let i = 0; i < resourceRefs.length; i++) {
+      const resourcePath = resourceRefs[i];
+      showMessage(`Processing resources: ${i+1}/${resourceRefs.length}`, 0);
+      
+      try {
+        // Clean up the path and construct the full URL
+        const cleanPath = resourcePath.replace(/^\/|\\/, '');
+        // Use just the filename part without path for Azure storage structure
+        const fileName = cleanPath.split(/[\/\\]/).pop();
+        const resourceUrl = new URL(fileName, resourceBaseUrl).toString();
+        
+        console.log(`Fetching: ${resourceUrl}`);
+        const response = await fetch(resourceUrl);
+        
+        if (response.ok) {
+          const data = await response.arrayBuffer();
+          zip.file(fileName, data);
+          successCount++;
+        } else {
+          console.warn(`Failed to fetch ${resourceUrl}: ${response.status}`);
+          failCount++;
+        }
+      } catch (e) {
+        console.warn(`Error fetching resource: ${resourcePath}`, e);
+        failCount++;
+      }
+    }
+    
+    // 12. Generate the ZIP file
+    showMessage("Building zip file...", 0);
+    const zipBlob = await zip.generateAsync({type: 'blob'});
+    
+    // 13. Trigger download
+    const downloadLink = document.createElement('a');
+    downloadLink.href = URL.createObjectURL(zipBlob);
+    downloadLink.download = `${gameName.replace(/[^a-zA-Z0-9]/g, '_')}_slot${slotIndex}_super_save.quest`;
+    downloadLink.click();
+    
+    showMessage(`Super save created! (${successCount} resources saved, ${failCount} failed)`, 5000);
+  } catch (error) {
+    console.error("Error creating super save:", error);
+    showMessage("Error: " + error.message, 5000);
+  }
+}
+
+// Helper function to extract resource references from XML
+function extractResourceReferences(xmlString) {
+  const refs = [];
+  
+  // Extract image references (more flexible pattern)
+  const fileUrlMatches = xmlString.matchAll(/GetFileURL\s*\(\s*["']([^"']+)["']\s*\)/g);
+  for (const match of fileUrlMatches) {
+    if (match[1]) refs.push(match[1]);
+  }
+  
+  // Extract JS references (any src attribute)
+  const srcMatches = xmlString.matchAll(/src\s*=\s*["']([^"']+)["']/g);
+  for (const match of srcMatches) {
+    // Filter out http/https URLs and only keep relative paths
+    if (match[1] && !match[1].startsWith('http')) refs.push(match[1]);
+  }
+  
+  // Extract from cover element
+  const coverMatch = xmlString.match(/<cover>(.*?)<\/cover>/);
+  if (coverMatch && coverMatch[1]) {
+    refs.push(coverMatch[1]);
+  }
+  
+  // Get publishfileextensions to look for these file types
+  const publishMatch = xmlString.match(/<publishfileextensions>(.*?)<\/publishfileextensions>/);
+  if (publishMatch && publishMatch[1]) {
+    const extensions = publishMatch[1].split(';')
+      .map(ext => ext.trim().replace(/^\*\./, ''));
+      
+    // Look for strings that might be filenames with these extensions
+    for (const ext of extensions) {
+      const extRegex = new RegExp(`["']([^"']+\\.${ext})["']`, 'g');
+      const matches = xmlString.matchAll(extRegex);
+      for (const match of matches) {
+        if (match[1]) refs.push(match[1]);
+      }
+    }
+  }
+  
+  return [...new Set(refs)]; // Remove duplicates
+}
